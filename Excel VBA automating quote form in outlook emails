@@ -1,0 +1,126 @@
+Sub PosaljiEmailSaTabelom()
+    Dim outlookApp As Object
+    Dim outlookMail As Object
+    Dim count_row As Integer
+    Dim count_col As Integer
+    Dim pop As Range
+    Dim emailAdresa As String
+    
+    ' Unos email adrese korisnika
+    emailAdresa = InputBox("Enter email address:", "Email Address")
+    
+    ' Provjera da li je korisnik unio email adresu
+    If emailAdresa = "" Then
+        MsgBox "Email address didn't find."
+        Exit Sub
+    End If
+    
+    ' Postavljanje aplikacije Outlook
+    Set outlookApp = CreateObject("Outlook.Application")
+    Set outlookMail = outlookApp.CreateItem(0)
+    
+    ' Omogućavanje korisniku odabir opsega mišem
+    On Error Resume Next
+    Set pop = Application.InputBox("Select range:", Type:=8)
+    On Error GoTo 0
+    
+    If pop Is Nothing Then
+        MsgBox "Error."
+        Exit Sub
+    End If
+    
+    ' Brojanje vidljivih redova
+    count_row = 0
+    For Each cell In pop.Rows(1).Cells
+        If cell.EntireRow.Hidden = False Then
+            count_row = count_row + 1
+        End If
+    Next cell
+    
+    count_col = pop.Columns.Count
+    
+    ' Kreiranje novog emaila
+    With outlookMail
+        .To = emailAdresa
+        .Subject = "Email"
+        .BodyFormat = 2 ' 2 označava HTML format
+        .HTMLBody = "Hi " & customerName & ",<br><br>" & _
+                    "Thank you for your enquiry. Please note our current 'OCTOBERFEST' SALE which gives you 30% off All Dining Room Tables, 25% off Dining Chairs, 10% off Net Priced Chairs, 30% off All Bedroom Pieces and 20% off on All Office & Living Furniture (***Net Priced Items, Custom and Floor Model items excluded***).<br><br>" & _
+                    "SALE ON UNTIL OCTOBER 23RD, 2023. Below please find pricing for your pieces.<br><br>" & RangetoHTML(pop, count_row, count_col) & _
+                    "<br><br>Just so you know, Woodcraft has been manufacturing and constructing solid wood furniture since 1974. We use the best locally available woods to build our furniture.<br><br>" & _
+                    "Should you have any further questions, please let me know. I would be happy to help.<br><br>" & _
+                    "• Lead time is approximately 6-8 weeks.<br>" & _
+                    "• We take a 50% deposit.<br>" & _
+                    "• Local Delivery is $280 or you have the option to pick up.<br><br>" & _
+                    "All the best,<br><br>" & _
+                    "Bo Kremeris<br><br>" & _
+                    "370 Denison Street E.,<br>" & _
+                    "Markham, ON, L3R 1B9<br>" & _
+                    "905-475-2488"
+        .Display ' Opciono: .Display će prikazati email pre slanja, .Send će odmah poslati email
+    End With
+    
+    ' Oslobađanje resursa
+    Set outlookMail = Nothing
+    Set outlookApp = Nothing
+End Sub
+
+
+Function RangetoHTML(rng As Range, numRows As Integer, numCols As Integer) As String
+    Dim fso As Object
+    Dim ts As Object
+    Dim TempFile As String
+    Dim TempWB As Workbook
+    
+    TempFile = Environ$("temp") & "\" & Format(Now, "dd-mm-yy h-mm-ss") & ".htm"
+    
+    rng.Copy
+    Application.Wait (Now + TimeValue("0:00:01")) ' Pauza od 1 sekunde
+    Set TempWB = Workbooks.Add
+    
+    With TempWB.Sheets(1)
+        .Cells(1).PasteSpecial Paste:=8
+        .Cells(1).PasteSpecial xlPasteValues, , False, False
+        .Cells(1).PasteSpecial xlPasteFormats, , False, False
+        .Cells(1).Select
+        Application.CutCopyMode = False
+        
+        ' Provera vidljivosti redova i isključivanje sakrivenih redova
+        For i = 1 To numRows
+            If rng.Rows(i).EntireRow.Hidden = False Then
+                .Rows(i).EntireRow.Hidden = False
+            End If
+        Next i
+        
+        On Error Resume Next
+        .DrawingObjects.Visible = True
+        .DrawingObjects.Delete
+        On Error GoTo 0
+    End With
+    
+    With TempWB.PublishObjects.Add( _
+        SourceType:=xlSourceRange, _
+        Filename:=TempFile, _
+        Sheet:=TempWB.Sheets(1).Name, _
+        Source:=TempWB.Sheets(1).UsedRange.Address, _
+        HtmlType:=xlHtmlStatic)
+        .Publish (True)
+    End With
+    
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    Set ts = fso.GetFile(TempFile).OpenAsTextStream(1, -2)
+    RangetoHTML = ts.ReadAll
+    ts.Close
+    RangetoHTML = Replace(RangetoHTML, "align=center x:publishsource=", _
+                            "align=left x:publishsource=")
+    
+    TempWB.Close SaveChanges:=False
+    
+    Kill TempFile
+    
+    Set ts = Nothing
+    Set fso = Nothing
+    Set TempWB = Nothing
+End Function
+
+
